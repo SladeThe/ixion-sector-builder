@@ -12,7 +12,7 @@ to the author for the original! This repo is a modded offline mirror of it (upst
 
 ## What this edition adds over the original
 
-- Runs offline from `file://`: open `local.html`, no server needed.
+- Runs offline from `file://`: open `index.html`, no server needed.
 - ~1.5x larger grid and a window-filling viewport (no letterbox).
 - Fixed 4-column tile palette grouped by category, with proper in-game building names.
 - Hover info panel: size, power/worker stats and a short description per building.
@@ -29,8 +29,8 @@ to the author for the original! This repo is a modded offline mirror of it (upst
 ## Run
 
 - Live demo: https://sladethe.github.io/ixion-sector-builder/
-- Offline: download/clone the repo and open `local.html` in a browser (double-click works).
-- Over HTTP: serve the folder and open `index.html`.
+- Offline: download/clone the repo and open `index.html` in a browser (double-click works).
+- Over HTTP: serve the folder and open the same `index.html` (how the live demo runs).
 - Chromium browsers use the save-file picker; elsewhere a plain download is used instead,
   and Shift+Export (Ctrl+Shift+S) saves YAML.
 
@@ -75,7 +75,7 @@ Uses Godot 3.5.1 (the upstream engine version). From the repo root:
 
 1. Export the pack: `Godot_v3.5.1-stable_win64.exe --no-window --path src --export-pack HTML5 index.pck`
    (lands in `src/index.pck`; move it to the repo root).
-2. Update the `index.pck` size in `local.html` (`GODOT_CONFIG.fileSizes`).
+2. Update the `index.pck` size in `index.html` (`GODOT_CONFIG.fileSizes`).
 3. Regenerate the base64 embeds: `powershell -File rebuild-embeds.ps1`.
 
 See `AGENTS.md` for the full development guide.
