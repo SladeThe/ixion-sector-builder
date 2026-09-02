@@ -28,6 +28,7 @@ to the author for the original! This repo is a modded offline mirror of it (upst
 
 ## Run
 
+- Live demo: https://sladethe.github.io/ixion-sector-builder/
 - Offline: download/clone the repo and open `local.html` in a browser (double-click works).
 - Over HTTP: serve the folder and open `index.html`.
 - Chromium browsers use the save-file picker; elsewhere a plain download is used instead,
