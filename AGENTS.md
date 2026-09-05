@@ -24,17 +24,19 @@ same page works as-is (this is how the live demo runs).
 
 ## Local mods
 
-~1.5x larger grid, window-filling viewport (no letterbox), fixed 4-column tile palette, radial hover highlight (luminance-shifted gradient baked to a texture),
-hover info panel with wiki descriptions, Esc cancel. MMB on a placed stockpile cycles its stored resource (Shift+MMB reverses)
-(none + 11 storable types), drawn as an icon in its top-left corner and saved in YAML as `resource:`.
-A LAYOUT CHECK panel (top right) lists errors (no Mess Hall / no Workshop / quarters below required
-workers, import overlaps / out-of-bounds) and warnings (no Fire Station / DLS Center / Memorial /
-Infirmary, stored power < 700, quarters below 800; with an Alt Life Center present the 800-cap
-warning reads as its partial-bonus case). Hovering a placed building shows its stats in the info
-panel. Buttons: Import / Export / Clear; Ctrl+O imports, Ctrl+S exports. Export saves a single PNG whose `tEXt` chunk (`ixion-layout`)
+~1.5x larger grid than upstream, editor-style dock shell: top toolbar (cursor coords left, resource totals centered, Import/Export/Clear right),
+left palette rail (fixed 4-column tiles), single right rail (LAYOUT CHECK at the top, hover info with wiki descriptions or the controls
+hint pinned to its bottom). Frames keep a small gap so borders never collide. The grid fits the leftover center rect, so panels
+never overlap it. Chrome scales with clamp(min(w/2560, h/1440), 0.8, 1.3); the check list fills the rail's free space and scrolls
+only on overflow. UI fonts render unfiltered at integer rects for crisp browser text.
+Radial hover highlight (luminance-shifted gradient baked to a texture), Esc cancel. MMB on a placed stockpile cycles its stored resource
+(Shift+MMB reverses) (none + 11 storable types), drawn as an icon in its top-left corner and saved in YAML as `resource:`.
+LAYOUT CHECK lists errors (no Mess Hall / no Workshop / quarters below required workers, import overlaps / out-of-bounds) and warnings
+(no Fire Station / DLS Center / Memorial / Infirmary, stored power < 700, quarters below 800; with an Alt Life Center present the 800-cap
+warning reads as its partial-bonus case). Ctrl+O imports, Ctrl+S exports. Export saves a single PNG whose `tEXt` chunk (`ixion-layout`)
 carries the YAML (save picker offers YAML too); Import accepts `.png` (embedded layout) and `.yaml`.
-Rotation remembered per building type. Wall-only buildings
-cannot occupy the middle 8 top-wall cells (red glow). Static UI: no zoom, no panning, no scrolling.
+Rotation remembered per building type. Wall-only buildings cannot occupy the middle 8 top-wall cells (red glow).
+Static UI: no zoom, no panning; scrolling only inside an over-long problems list.
 
 Buildings use proper in-game names ("Stockpile - Small", "Battery - Tier 1"). Tiles keep full-word
 aliases with explicit line breaks (`BuildingInfo.TILE_LABELS`) and per-category tile order
@@ -45,7 +47,7 @@ exported PNGs are self-contained layouts. Last file name persists in
 
 ## App map (`src/`)
 
-- `Main.gd` — grid draw, camera fit, sidebar/info/IO UI, JS interop, import/export, wall zone, layout checks.
+- `Main.gd` — grid draw, dock shell (toolbar/palette/right rail), camera fit to the center rect, JS interop, import/export, wall zone, layout checks. `IXION_LAYOUT=<yaml path>` headless run loads a layout for UI screenshots.
 - `Classes/Building.gd` — placement/move/rotate/delete logic, labels, stockpile resource cycling + icon.
 - `Classes/BuildingInfo.gd` — categories, wiki descriptions, tile labels, tile order. Keys must
   exactly match `building_name` in `Buildings/*.tscn` (rename both sides together).

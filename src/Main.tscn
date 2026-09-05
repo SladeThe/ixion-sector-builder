@@ -10,17 +10,4 @@ current = true
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 
-[node name="Label" type="Label" parent="UILayer"]
-
-[node name="MarginContainer" type="MarginContainer" parent="UILayer"]
-custom_constants/margin_top = 4
-
-[node name="HBoxContainer" type="HBoxContainer" parent="UILayer/MarginContainer"]
-margin_right = 960.0
-alignment = 1
-
-[node name="BuildButtons" type="Control" parent="UILayer"]
-anchor_top = 1.0
-anchor_bottom = 1.0
-
 [connection signal="child_exiting_tree" from="." to="." method="_on_Main_child_exiting_tree"]

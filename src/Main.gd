@@ -8,16 +8,16 @@ const GRID_LINE_WIDTH = 3.0
 const TILE_COLUMNS = 4
 const TILE_SIZE = Vector2(131.0, 46.0)
 const CATEGORY_SPACER = 6.0
-const FRAME_MARGIN = 14.0
-const INFO_WIDTH = 480.0
-const INFO_HEIGHT = 180.0
-const GRID_INDENT = 16.0
-const IO_BUTTON_HEIGHT = 36.0
+const PANEL_MARGIN = 12.0
+const IO_BUTTON_SIZE = Vector2(96.0, 36.0)
+const TOOLBAR_HEIGHT = 56.0
+const INSPECTOR_WIDTH = 340.0
+const CANVAS_PAD = 12.0
+const FRAME_GAP = 6.0
 const WALL_ZONE_X0 = 24
 const WALL_ZONE_X1 = 31
 const WALL_ZONE_FILL = Color(1.0, 0.35, 0.35, 0.45)
 const WALL_ZONE_BORDER = Color(1.0, 0.55, 0.55, 0.9)
-const MESSAGES_TOP = 40.0
 const QUARTER_CAPACITY = {
 	"Crew Quarters": 24.0,
 	"Optimized Quarter": 64.0,
@@ -46,7 +46,7 @@ var can_select = true
 var resources = {}
 
 var ui_scale = 1.0
-var sidebar_width = 0.0
+var canvas_rect = Rect2()
 var _shot_frames = -1
 
 var ui_font: DynamicFont
@@ -55,21 +55,29 @@ var ui_font_title: DynamicFont
 var ui_font_small: DynamicFont
 var header_labels = []
 var button_labels = []
+var palette_buttons = []
+var palette_grids = []
+var palette_spacers = []
+var palette_box: VBoxContainer
 var info_title: Label
 var info_category: Label
 var info_body: RichTextLabel
 var sidebar: PanelContainer
-var info_panel: Panel
+var right_panel: PanelContainer
+var toolbar: PanelContainer
+var toolbar_row: HBoxContainer
+var res_bar: HBoxContainer
+var io_row: HBoxContainer
+var left_box: HBoxContainer
+var coord_label: Label
 var building_fonts = {}
 var building_scenes = {}
-var io_panel: PanelContainer
 var import_pending = false
 var last_sizes = {}
 var wall_zone_show = false
 var import_errors = []
 var hover_building = null
 var hover_entry = null
-var messages_panel: PanelContainer
 var messages_title: Label
 var messages_body: RichTextLabel
 
@@ -84,13 +92,17 @@ func _ready():
 		for y in SECTOR_SIZE.y:
 			build_grid[x].append(0)
 	get_viewport().connect("size_changed", self, "_on_viewport_resized")
+	set_up_toolbar()
 	set_up_resource_display()
 	set_up_sidebar()
-	set_up_info_panel()
-	set_up_messages_panel()
+	set_up_right_rail()
 	set_up_io_buttons()
 	refresh_ui_scale()
-	fit_camera()
+	if OS.get_environment("IXION_LAYOUT") != "":
+		var f = File.new()
+		if f.open(OS.get_environment("IXION_LAYOUT"), File.READ) == OK:
+			apply_layout(LayoutIO.from_yaml(f.get_as_text()))
+			f.close()
 	if OS.get_environment("IXION_HOVER_TEST") != "":
 		var b = load("res://Buildings/Stockpile-Lg.tscn").instance()
 		b.state = b.STATES.STATIC
@@ -115,7 +127,7 @@ func _process(_delta):
 	target = get_local_mouse_position() / SQUARE_SIZE
 	target.x = floor(clamp(target.x, 0, SECTOR_SIZE.x - 1))
 	target.y = floor(clamp(target.y, 0, SECTOR_SIZE.y - 1))
-	$UILayer / Label.text = str(target)
+	coord_label.text = str(target)
 	if import_pending:
 		poll_import()
 	update_wall_zone()
@@ -153,27 +165,12 @@ func spawn_building(building_name: String):
 func fit_camera():
 	var view = get_viewport_rect().size
 	var grid_px = SECTOR_SIZE * SQUARE_SIZE
-	var sidebar_px = sidebar_width * ui_scale
-	var info_left = view.x - INFO_WIDTH * ui_scale - FRAME_MARGIN
-	var panel_top = view.y - INFO_HEIGHT * ui_scale - FRAME_MARGIN
-	var top_reserve = 56.0
-	var base_zoom = max(grid_px.x / (view.x * 0.52), grid_px.y / (view.y * 0.66))
-	base_zoom = max(base_zoom, grid_px.x / max(view.x - sidebar_px - 2.0 * GRID_INDENT, 100.0))
-	base_zoom = max(base_zoom, grid_px.y / max(panel_top - 8.0 - top_reserve, 100.0))
-	var z = clamp(base_zoom, 0.35, 2.5)
+	var pad = CANVAS_PAD * ui_scale
+	var avail = canvas_rect.size - Vector2(2.0 * pad, 2.0 * pad)
+	var z = clamp(max(grid_px.x / max(avail.x, 100.0), grid_px.y / max(avail.y, 100.0)), 0.35, 2.5)
 	$Cam.zoom = Vector2(z, z)
-	var desired_center = (sidebar_px + info_left) * 0.5
-	var cam_x = grid_px.x * 0.5 - (desired_center - view.x * 0.5) * z
-	cam_x = min(cam_x, z * (view.x * 0.5 - sidebar_px - GRID_INDENT))
-	var cam_y = grid_px.y * 0.55 - 20.0 * z
-	cam_y = clamp(cam_y, grid_px.y - z * (panel_top - FRAME_MARGIN - view.y * 0.5), z * (view.y * 0.5 - top_reserve))
-	$Cam.position = Vector2(cam_x, cam_y)
-	var grid_center = view.x * 0.5 - (cam_x - grid_px.x * 0.5) / z
-	var margin_container = $UILayer / MarginContainer
-	margin_container.rect_position = Vector2(grid_center - view.x * 0.5, 0.0)
-	margin_container.rect_size = Vector2(view.x, margin_container.rect_size.y)
-	var grid_top = view.y * 0.5 - cam_y / z
-	$UILayer / Label.rect_position = Vector2(view.x * 0.5 - cam_x / z, grid_top - 26.0 * ui_scale)
+	var center = canvas_rect.position + canvas_rect.size * 0.5
+	$Cam.position = grid_px * 0.5 - (center - view * 0.5) * z
 
 func _on_viewport_resized():
 	refresh_ui_scale()
@@ -203,6 +200,28 @@ func mouse_in_bounds():
 		return true
 	return false
 
+func set_up_toolbar():
+	toolbar = PanelContainer.new()
+	toolbar.name = "Toolbar"
+	toolbar.add_stylebox_override("panel", make_panel_style())
+	toolbar_row = HBoxContainer.new()
+	toolbar_row.add_constant_override("separation", 16)
+	left_box = HBoxContainer.new()
+	coord_label = Label.new()
+	left_box.add_child(coord_label)
+	toolbar_row.add_child(left_box)
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	toolbar_row.add_child(spacer)
+	res_bar = HBoxContainer.new()
+	res_bar.add_constant_override("separation", 10)
+	toolbar_row.add_child(res_bar)
+	var spacer2 = Control.new()
+	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	toolbar_row.add_child(spacer2)
+	toolbar.add_child(toolbar_row)
+	$UILayer.add_child(toolbar)
+
 func set_up_resource_display():
 	var temp_scene = ResourceDisplayScene.instance()
 	var keys = temp_scene.ICON_DICT.keys()
@@ -213,7 +232,7 @@ func set_up_resource_display():
 		if key == "Housing" or key == "Workers":
 			color_text = false
 		new_res.set_up(key, color_text)
-		$UILayer / MarginContainer / HBoxContainer.add_child(new_res)
+		res_bar.add_child(new_res)
 
 func update_resource_display():
 	var children = get_children()
@@ -225,10 +244,10 @@ func update_resource_display():
 					resources[res_name] += child.resources[res_name]
 				else:
 					resources[res_name] = child.resources[res_name]
-	for ResDis in $UILayer / MarginContainer / HBoxContainer.get_children():
+	for ResDis in res_bar.get_children():
 		ResDis.visible = false
 	for res_name in resources.keys():
-		var ResDis = $UILayer / MarginContainer / HBoxContainer.get_node(res_name)
+		var ResDis = res_bar.get_node(res_name)
 		ResDis.set_value(resources[res_name])
 		if ResDis.name == "Workers":
 			if resources.has("Housing"):
@@ -296,22 +315,7 @@ func update_layout_messages():
 	position_messages_panel(max(1, errors.size() + warnings.size()))
 
 func position_messages_panel(line_count: int):
-	var view = get_viewport_rect().size
-	var width = INFO_WIDTH * ui_scale
-	var line_h = 20.0
-	if ui_font_small != null:
-		line_h = ui_font_small.get_height()
-	var body_h = line_count * line_h + 4.0
-	var max_body = view.y - MESSAGES_TOP - INFO_HEIGHT * ui_scale - 3.0 * FRAME_MARGIN - line_h - 30.0
-	if body_h > max_body:
-		body_h = max_body
-		messages_body.scroll_active = true
-	else:
-		messages_body.scroll_active = false
-	messages_body.fit_content_height = false
-	messages_body.rect_min_size = Vector2(0.0, body_h)
-	messages_panel.rect_size = Vector2(width, body_h + line_h + 30.0)
-	messages_panel.rect_position = Vector2(view.x - width - FRAME_MARGIN, MESSAGES_TOP)
+	pass
 
 func collect_buildings():
 	var by_category = {}
@@ -362,11 +366,10 @@ func _sort_entries(a, b):
 func set_up_sidebar():
 	sidebar = PanelContainer.new()
 	sidebar.name = "Sidebar"
-	sidebar.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	sidebar.add_stylebox_override("panel", make_panel_style())
-	var box = VBoxContainer.new()
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_constant_override("separation", 4)
+	palette_box = VBoxContainer.new()
+	palette_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	palette_box.add_constant_override("separation", 4)
 	var by_category = collect_buildings()
 	var categories = BuildingInfo.CATEGORY_ORDER.duplicate()
 	for extra in by_category.keys():
@@ -379,7 +382,7 @@ func set_up_sidebar():
 		header.text = category.to_upper()
 		header.align = Label.ALIGN_CENTER
 		header.add_color_override("font_color", HEADER_COLOR)
-		box.add_child(header)
+		palette_box.add_child(header)
 		header_labels.append(header)
 		var grid = GridContainer.new()
 		grid.columns = TILE_COLUMNS
@@ -387,12 +390,14 @@ func set_up_sidebar():
 		grid.add_constant_override("vseparation", 8)
 		for entry in by_category[category]:
 			grid.add_child(make_building_button(entry))
-		box.add_child(grid)
+		palette_box.add_child(grid)
+		palette_grids.append(grid)
 		if category != categories[categories.size() - 1]:
 			var spacer = Control.new()
 			spacer.rect_min_size = Vector2(0.0, CATEGORY_SPACER)
-			box.add_child(spacer)
-	sidebar.add_child(box)
+			palette_box.add_child(spacer)
+			palette_spacers.append(spacer)
+	sidebar.add_child(palette_box)
 	$UILayer.add_child(sidebar)
 
 func make_building_button(entry: Dictionary) -> Button:
@@ -420,6 +425,7 @@ func make_building_button(entry: Dictionary) -> Button:
 	button.connect("mouse_exited", self, "_on_button_blur", [button])
 	button.connect("button_down", self, "_on_button_down", [button])
 	button.connect("button_up", self, "_on_button_up", [button])
+	palette_buttons.append(button)
 	return button
 
 func _on_button_pressed(button: Button):
@@ -441,17 +447,23 @@ func make_panel_style() -> StyleBoxFlat:
 	style.content_margin_bottom = 10.0
 	return style
 
-func set_up_info_panel():
-	info_panel = Panel.new()
-	info_panel.name = "InfoPanel"
-	info_panel.add_stylebox_override("panel", make_panel_style())
+func set_up_right_rail():
+	right_panel = PanelContainer.new()
+	right_panel.name = "RightRail"
+	right_panel.add_stylebox_override("panel", make_panel_style())
 	var vbox = VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_WIDE)
-	vbox.margin_left = 12.0
-	vbox.margin_top = 10.0
-	vbox.margin_right = -12.0
-	vbox.margin_bottom = -10.0
-	vbox.add_constant_override("separation", 4)
+	vbox.add_constant_override("separation", 6)
+	messages_title = Label.new()
+	messages_title.text = "LAYOUT CHECK"
+	messages_title.add_color_override("font_color", HEADER_COLOR)
+	vbox.add_child(messages_title)
+	messages_body = RichTextLabel.new()
+	messages_body.bbcode_enabled = true
+	messages_body.scroll_active = true
+	messages_body.fit_content_height = false
+	messages_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	messages_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(messages_body)
 	var title_row = HBoxContainer.new()
 	title_row.add_constant_override("separation", 12)
 	info_title = Label.new()
@@ -465,11 +477,11 @@ func set_up_info_panel():
 	vbox.add_child(title_row)
 	info_body = RichTextLabel.new()
 	info_body.bbcode_enabled = true
-	info_body.scroll_active = false
-	info_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	info_body.scroll_active = true
+	info_body.fit_content_height = false
 	vbox.add_child(info_body)
-	info_panel.add_child(vbox)
-	$UILayer.add_child(info_panel)
+	right_panel.add_child(vbox)
+	$UILayer.add_child(right_panel)
 	show_info_hint()
 
 func show_info_hint():
@@ -488,25 +500,6 @@ func _on_button_hover(button: Button, entry: Dictionary):
 	info_title.text = entry["name"]
 	info_category.text = entry["category"].to_upper()
 	info_body.bbcode_text = PoolStringArray([size_text, format_resources(entry["resources"]), "", entry["description"]]).join("\n")
-
-func set_up_messages_panel():
-	messages_panel = PanelContainer.new()
-	messages_panel.name = "MessagesPanel"
-	messages_panel.add_stylebox_override("panel", make_panel_style())
-	var vbox = VBoxContainer.new()
-	vbox.add_constant_override("separation", 2)
-	messages_title = Label.new()
-	messages_title.text = "LAYOUT CHECK"
-	messages_title.add_color_override("font_color", HEADER_COLOR)
-	vbox.add_child(messages_title)
-	messages_body = RichTextLabel.new()
-	messages_body.bbcode_enabled = true
-	messages_body.scroll_active = false
-	messages_body.fit_content_height = true
-	messages_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_child(messages_body)
-	messages_panel.add_child(vbox)
-	$UILayer.add_child(messages_panel)
 
 func _on_button_blur(button: Button):
 	button.hovered = false
@@ -541,23 +534,19 @@ func _on_button_up(button: Button):
 	button.modulate = Color.white
 
 func set_up_io_buttons():
-	io_panel = PanelContainer.new()
-	io_panel.name = "IoButtons"
-	io_panel.add_stylebox_override("panel", make_panel_style())
-	var row = HBoxContainer.new()
-	row.add_constant_override("separation", 10)
+	io_row = HBoxContainer.new()
+	io_row.add_constant_override("separation", 10)
 	for label in ["Import", "Export", "Clear"]:
 		var button = Button.new()
 		button.text = label
-		button.rect_min_size = Vector2(96.0, IO_BUTTON_HEIGHT)
+		button.rect_min_size = IO_BUTTON_SIZE
 		button.add_stylebox_override("normal", make_io_style(false))
 		button.add_stylebox_override("hover", make_io_style(true))
 		button.add_stylebox_override("pressed", make_io_style(false, true))
 		button.add_stylebox_override("focus", StyleBoxEmpty.new())
 		button.connect("pressed", self, "_on_io_button", [label])
-		row.add_child(button)
-	io_panel.add_child(row)
-	$UILayer.add_child(io_panel)
+		io_row.add_child(button)
+	toolbar_row.add_child(io_row)
 
 func make_io_style(hover: bool, pressed: bool = false) -> StyleBoxFlat:
 	var style = StyleBoxFlat.new()
@@ -718,11 +707,11 @@ func format_resources(res: Dictionary) -> String:
 		parts.append(key + " " + prefix + str(stepify(value, 0.1)))
 	return PoolStringArray(parts).join(" | ")
 
-func make_font(size: int, outlined: bool = false) -> DynamicFont:
+func make_font(size: int, outlined: bool = false, filtered: bool = true) -> DynamicFont:
 	var font = DynamicFont.new()
 	font.font_data = load("res://Belwe Medium.otf")
 	font.size = size
-	font.use_filter = true
+	font.use_filter = filtered
 	font.extra_spacing_top = 2
 	font.extra_spacing_bottom = 2
 	if outlined:
@@ -755,36 +744,60 @@ func _unhandled_input(event):
 
 func refresh_ui_scale():
 	var view = get_viewport_rect().size
-	ui_scale = clamp(view.y / 960.0, 1.0, 1.3)
-	ui_font = make_font(int(round(15 * ui_scale)))
-	ui_font_large = make_font(int(round(17 * ui_scale)), true)
-	ui_font_title = make_font(int(round(16 * ui_scale)))
-	ui_font_small = make_font(int(round(13 * ui_scale)))
-	sidebar_width = sidebar.get_rect().size.x
+	ui_scale = clamp(min(view.x / 2560.0, view.y / 1440.0), 0.8, 1.3)
+	ui_font = make_font(int(round(15 * ui_scale)), false, false)
+	ui_font_large = make_font(int(round(17 * ui_scale)), true, false)
+	ui_font_title = make_font(int(round(16 * ui_scale)), false, false)
+	ui_font_small = make_font(int(round(13 * ui_scale)), false, false)
 	for header in header_labels:
 		header.add_font_override("font", ui_font_large)
 	var line_h = ui_font.get_height()
+	var tile = TILE_SIZE * ui_scale
+	for button in palette_buttons:
+		button.rect_min_size = tile
 	for label in button_labels:
 		label.add_font_override("normal_font", ui_font)
 		var lines = int(label.get_meta("lines", 1))
-		label.rect_position = Vector2(4.0, (TILE_SIZE.y - lines * line_h) * 0.5)
-		label.rect_size = Vector2(TILE_SIZE.x - 8.0, lines * line_h + 4.0)
+		label.rect_position = Vector2(4.0 * ui_scale, (tile.y - lines * line_h) * 0.5)
+		label.rect_size = Vector2(tile.x - 8.0 * ui_scale, lines * line_h + 4.0)
+	palette_box.add_constant_override("separation", int(4 * ui_scale))
+	for grid in palette_grids:
+		grid.add_constant_override("hseparation", int(8 * ui_scale))
+		grid.add_constant_override("vseparation", int(8 * ui_scale))
+	for spacer in palette_spacers:
+		spacer.rect_min_size = Vector2(0.0, CATEGORY_SPACER * ui_scale)
 	info_title.add_font_override("font", ui_font_title)
 	info_category.add_font_override("font", ui_font_small)
 	info_body.add_font_override("normal_font", ui_font)
+	info_body.rect_min_size = Vector2(0.0, 9.0 * ui_font.get_height())
 	messages_title.add_font_override("font", ui_font_small)
 	messages_body.add_font_override("normal_font", ui_font_small)
-	for button in io_panel.get_child(0).get_children():
+	coord_label.add_font_override("font", ui_font)
+	for button in io_row.get_children():
 		button.add_font_override("font", ui_font_small)
-	info_panel.rect_size = Vector2(INFO_WIDTH * ui_scale, INFO_HEIGHT * ui_scale)
-	info_panel.rect_position = view - info_panel.rect_size - Vector2(FRAME_MARGIN, FRAME_MARGIN)
-	var io_size = io_panel.get_rect().size
-	var info_left = view.x - INFO_WIDTH * ui_scale - FRAME_MARGIN
-	io_panel.rect_position = Vector2((sidebar_width * ui_scale + info_left) * 0.5 - io_size.x * 0.5, view.y - io_size.y - FRAME_MARGIN)
-	$UILayer / Label.add_font_override("font", make_font(int(round(13 * ui_scale))))
-	for ResDis in $UILayer / MarginContainer / HBoxContainer.get_children():
+		button.rect_min_size = IO_BUTTON_SIZE * ui_scale
+	for ResDis in res_bar.get_children():
 		ResDis.get_node("HBoxContainer/RichTextLabel").add_font_override("normal_font", ui_font)
+		ResDis.get_node("HBoxContainer/TextureRect").rect_min_size = Vector2(27, 27) * ui_scale
+	layout_ui()
+	fit_camera()
 	update_layout_messages()
+
+func layout_ui():
+	var view = get_viewport_rect().size
+	var s = ui_scale
+	var toolbar_h = round(TOOLBAR_HEIGHT * s)
+	var gap = round(FRAME_GAP * s)
+	var palette_w = round(TILE_COLUMNS * TILE_SIZE.x * s + (TILE_COLUMNS - 1) * 8.0 * s + 2.0 * PANEL_MARGIN)
+	var rail_w = round(INSPECTOR_WIDTH * s)
+	toolbar.rect_position = Vector2.ZERO
+	toolbar.rect_size = Vector2(view.x, toolbar_h)
+	left_box.rect_min_size = Vector2(round(3.0 * IO_BUTTON_SIZE.x * s + 20.0 * s), 0.0)
+	sidebar.rect_position = Vector2(0.0, toolbar_h + gap)
+	sidebar.rect_size = Vector2(palette_w, view.y - toolbar_h - gap)
+	right_panel.rect_position = Vector2(view.x - rail_w, toolbar_h + gap)
+	right_panel.rect_size = Vector2(rail_w, view.y - toolbar_h - gap)
+	canvas_rect = Rect2(palette_w, toolbar_h + gap, view.x - palette_w - rail_w, view.y - toolbar_h - gap)
 
 func convert_yaml_dir():
 	var dir = Directory.new()

@@ -13,7 +13,7 @@ to the author for the original! This repo is a modded offline mirror of it (upst
 ## What this edition adds over the original
 
 - Runs offline from `file://`: open `index.html`, no server needed.
-- ~1.5x larger grid and a window-filling viewport (no letterbox).
+- Editor-style dock shell that adapts from FHD to 4K: left palette rail, toolbar (cursor coords, resource totals, IO buttons), right rail with LAYOUT CHECK on top and hover info pinned to the bottom; the grid is ~1.5x larger than upstream and takes all leftover space.
 - Fixed 4-column tile palette grouped by category, with proper in-game building names.
 - Hover info panel: size, power/worker stats and a short description per building.
 - LAYOUT CHECK panel with errors (no Mess Hall / no Workshop / quarters below required workers,
