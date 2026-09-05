@@ -27,8 +27,8 @@ same page works as-is (this is how the live demo runs).
 ~1.5x larger grid than upstream, editor-style dock shell: top toolbar (cursor coords left, resource totals centered, Import/Export/Clear right),
 left palette rail (fixed 4-column tiles), single right rail (LAYOUT CHECK at the top, hover info with wiki descriptions or the controls
 hint pinned to its bottom). Frames keep a small gap so borders never collide. The grid fits the leftover center rect, so panels
-never overlap it. Chrome scales with clamp(min(w/2560, h/1440), 0.8, 1.3); the check list fills the rail's free space and scrolls
-only on overflow. UI fonts render unfiltered at integer rects for crisp browser text.
+never overlap it. Chrome scales with clamp(min(w/2560, h/1440), 0.8, 1.3); palette tile width scales with aspect (0.8 below 2.0, ramping to 1.0 at 2.4) to give the grid more width on narrow screens.
+The check list fills the rail's free space and scrolls only on overflow. UI fonts render unfiltered at integer rects for crisp browser text.
 Radial hover highlight (luminance-shifted gradient baked to a texture), Esc cancel. MMB on a placed stockpile cycles its stored resource
 (Shift+MMB reverses) (none + 11 storable types), drawn as an icon in its top-left corner and saved in YAML as `resource:`.
 LAYOUT CHECK lists errors (no Mess Hall / no Workshop / quarters below required workers, import overlaps / out-of-bounds) and warnings

@@ -752,7 +752,8 @@ func refresh_ui_scale():
 	for header in header_labels:
 		header.add_font_override("font", ui_font_large)
 	var line_h = ui_font.get_height()
-	var tile = TILE_SIZE * ui_scale
+	var tile = palette_tile_size()
+
 	for button in palette_buttons:
 		button.rect_min_size = tile
 	for label in button_labels:
@@ -783,12 +784,24 @@ func refresh_ui_scale():
 	fit_camera()
 	update_layout_messages()
 
+func palette_tile_size() -> Vector2:
+	var view = get_viewport_rect().size
+	var tile = TILE_SIZE * ui_scale
+	var width_scale = 0.8
+	var aspect = view.x / max(view.y, 1.0)
+	if aspect > 2.4:
+		width_scale = 1.0
+	elif aspect >= 2.0:
+		width_scale = 0.8 + (aspect - 2.0) * 0.5
+	tile.x *= width_scale
+	return tile
+
 func layout_ui():
 	var view = get_viewport_rect().size
 	var s = ui_scale
 	var toolbar_h = round(TOOLBAR_HEIGHT * s)
 	var gap = round(FRAME_GAP * s)
-	var palette_w = round(TILE_COLUMNS * TILE_SIZE.x * s + (TILE_COLUMNS - 1) * 8.0 * s + 2.0 * PANEL_MARGIN)
+	var palette_w = round(TILE_COLUMNS * palette_tile_size().x + (TILE_COLUMNS - 1) * 8.0 * s + 2.0 * PANEL_MARGIN)
 	var rail_w = round(INSPECTOR_WIDTH * s)
 	toolbar.rect_position = Vector2.ZERO
 	toolbar.rect_size = Vector2(view.x, toolbar_h)
